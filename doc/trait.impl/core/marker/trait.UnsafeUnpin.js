@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["tpm2",[["impl UnsafeUnpin for <a class=\"enum\" href=\"tpm2/enum.TpmiAlgHash.html\" title=\"enum tpm2::TpmiAlgHash\">TpmiAlgHash</a>",1,["tpm2::hash::TpmiAlgHash"]],["impl UnsafeUnpin for <a class=\"struct\" href=\"tpm2/errors/struct.HashError.html\" title=\"struct tpm2::errors::HashError\">HashError</a>",1,["tpm2::errors::HashError"]],["impl UnsafeUnpin for <a class=\"struct\" href=\"tpm2/errors/struct.MarshalError.html\" title=\"struct tpm2::errors::MarshalError\">MarshalError</a>",1,["tpm2::errors::MarshalError"]],["impl UnsafeUnpin for <a class=\"struct\" href=\"tpm2/errors/struct.UnmarshalError.html\" title=\"struct tpm2::errors::UnmarshalError\">UnmarshalError</a>",1,["tpm2::errors::UnmarshalError"]],["impl UnsafeUnpin for <a class=\"struct\" href=\"tpm2/struct.Alg.html\" title=\"struct tpm2::Alg\">Alg</a>",1,["tpm2::Alg"]],["impl&lt;'a&gt; UnsafeUnpin for <a class=\"enum\" href=\"tpm2/enum.TpmtHa.html\" title=\"enum tpm2::TpmtHa\">TpmtHa</a>&lt;'a&gt;",1,["tpm2::hash::TpmtHa"]]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[1003]}
