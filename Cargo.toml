@@ -10,6 +10,18 @@ members = [
     "marshalable",
     "marshalable-derive",
 ]
+# TODO: Shorten this default
+default-members = [
+    ".",
+    "base",
+    "client",
+    "errors",
+    "marshalable",
+    "marshalable-derive",
+    "server",
+    "unionify",
+    "unionify-derive"
+]
 
 # Package keys that should be used by all packages.
 # We don't set: authors (deprecated), license-file, exclude, include, or publish
@@ -45,6 +57,19 @@ tpm2-rs-marshalable-derive = { path = "marshalable-derive" }
 tpm2 = { path = "crates/tpm2" }
 tpm2-client = { path = "crates/tpm2-client" }
 tpm2-impl = { path = "crates/tpm2-impl" }
+
+[package]
+name = "tpm2"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+documentation.workspace = true
+homepage.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [profile.release]
 lto = true # default is lto = false
