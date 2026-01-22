@@ -10,6 +10,8 @@ pub use limits::*;
 /// A type that can be marshalled into a destination byte buffer
 pub trait Marshal {
     fn marshal<'d, L: Limits>(&self, buf: &'d mut [u8]) -> Result<&'d mut [u8], MarshalError>;
+    fn marshal2<L: Limits>(&self, buf: &mut &mut [u8]) -> Result<(), MarshalError>;
+    fn marshal3<L: Limits>(&self, buf: &mut [u8]) -> Result<usize, MarshalError>;
     fn marshaled_size(&self) -> usize;
     fn marshaled_size_max<L: Limits>() -> usize;
 }
@@ -17,6 +19,8 @@ pub trait Marshal {
 /// A type that can be unmarshalled from a source byte buffer
 pub trait Unmarshal<'s> {
     fn unmarshal<L: Limits>(&mut self, buf: &'s [u8]) -> Result<&'s [u8], UnmarshalError>;
+    fn unmarshal2<L: Limits>(&mut self, buf: &mut &'s [u8]) -> Result<(), UnmarshalError>;
+    fn unmarshal3<L: Limits>(&mut self, buf: &'s [u8]) -> Result<usize, UnmarshalError>;
 }
 
 /// A type that has a consistent size when marshalled
@@ -32,14 +36,29 @@ pub trait MarshalFixed: Marshal {
 }
 // Blanket impl so a type only needs to implement `marshal_fixed()`.
 impl<T: MarshalFixed<Array = [u8; N]>, const N: usize> Marshal for T {
+    #[inline]
     fn marshal<'d, L: Limits>(&self, buf: &'d mut [u8]) -> Result<&'d mut [u8], MarshalError> {
         let (arr, buf) = buf.split_first_chunk_mut().ok_or(MarshalError)?;
         self.marshal_fixed(arr);
         Ok(buf)
     }
+    #[inline]
+    fn marshal2<L: Limits>(&self, buf: &mut &mut [u8]) -> Result<(), MarshalError> {
+        let arr = pop_array_mut(buf)?;
+        self.marshal_fixed(arr);
+        Ok(())
+    }
+    #[inline]
+    fn marshal3<L: Limits>(&self, buf: &mut [u8]) -> Result<usize, MarshalError> {
+        let arr = buf.first_chunk_mut().ok_or(MarshalError)?;
+        self.marshal_fixed(arr);
+        Ok(Self::SIZE)
+    }
+    #[inline]
     fn marshaled_size(&self) -> usize {
         Self::SIZE
     }
+    #[inline]
     fn marshaled_size_max<L: Limits>() -> usize {
         Self::SIZE
     }
@@ -60,12 +79,34 @@ impl<'s, T: UnmarshalFixed<Array = [u8; N]>, const N: usize> Unmarshal<'s> for T
         *self = Self::unmarshal_fixed::<L>(pop_array(&mut buf)?)?;
         Ok(buf)
     }
+    fn unmarshal2<L: Limits>(&mut self, buf: &mut &'s [u8]) -> Result<(), UnmarshalError> {
+        *self = Self::unmarshal_fixed::<L>(pop_array(buf)?)?;
+        Ok(())
+    }
+
+    fn unmarshal3<L: Limits>(&mut self, mut buf: &'s [u8]) -> Result<usize, UnmarshalError> {
+        *self = Self::unmarshal_fixed::<L>(pop_array(&mut buf)?)?;
+        Ok(Self::SIZE)
+    }
 }
 
+#[inline]
 pub(crate) fn pop_array<'s, const N: usize>(
     buf: &mut &'s [u8],
 ) -> Result<&'s [u8; N], UnmarshalError> {
     let arr;
     (arr, *buf) = buf.split_first_chunk().ok_or(UnmarshalError)?;
+    Ok(arr)
+}
+
+#[inline]
+pub(crate) fn pop_array_mut<'s, const N: usize>(
+    buf: &mut &'s mut [u8],
+) -> Result<&'s mut [u8; N], MarshalError> {
+    if buf.len() < N {
+        return Err(MarshalError);
+    }
+    let arr;
+    (arr, *buf) = core::mem::take(buf).split_first_chunk_mut().unwrap();
     Ok(arr)
 }

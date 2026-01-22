@@ -70,12 +70,12 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-[profile.release]
-lto = true # default is lto = false
-codegen-units = 1 # default is codegen-units = 16
-strip = true # default is strip = "none"
+[profile.firmware]
+inherits = "release"
 panic = "abort"
-opt-level = 2
+lto = true
+opt-level = "s"
+codegen-units = 1
 
 [[example]]
 name = "code_size"

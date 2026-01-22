@@ -65,11 +65,13 @@ impl Alg {
 impl MarshalFixed for Alg {
     const SIZE: usize = 2;
     type Array = [u8; 2];
+    #[inline]
     fn marshal_fixed(&self, arr: &mut [u8; Self::SIZE]) {
         self.0.marshal_fixed(arr)
     }
 }
 impl UnmarshalFixed for Alg {
+    #[inline]
     fn unmarshal_fixed<L: Limits>(arr: &Self::Array) -> Result<Self, UnmarshalError> {
         Ok(Self(UnmarshalFixed::unmarshal_fixed::<L>(arr)?))
     }

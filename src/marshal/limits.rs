@@ -47,7 +47,7 @@ impl TpmaHashAlgs {
     pub const SHA3_384: Self = Self(1 << 6);
     /// Indicates support for [`TpmiAlgHash::Sha3_512`].
     pub const SHA3_512: Self = Self(1 << 7);
-
+    #[inline]
     const fn from_alg(alg: TpmiAlgHash) -> Self {
         match alg {
             TpmiAlgHash::Sha1 => Self::SHA1,
@@ -60,6 +60,7 @@ impl TpmaHashAlgs {
             TpmiAlgHash::Sha3_512 => Self::SHA3_512,
         }
     }
+    #[inline]
     pub const fn from_alg_list(alg_list: &[TpmiAlgHash]) -> Self {
         let mut tpma = Self(0);
         let mut i = 0;
@@ -70,6 +71,7 @@ impl TpmaHashAlgs {
         }
         tpma
     }
+    #[inline]
     pub const fn supports_alg(self, alg: TpmiAlgHash) -> bool {
         self.contains(Self::from_alg(alg))
     }

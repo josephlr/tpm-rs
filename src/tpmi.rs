@@ -23,6 +23,7 @@ pub enum TpmiAlgHash {
 use TpmiAlgHash::*;
 
 impl TpmiAlgHash {
+    #[inline]
     pub const fn digest_size(self) -> usize {
         match self {
             Sha1 => 160 / 8,
@@ -35,9 +36,11 @@ impl TpmiAlgHash {
             Sha3_512 => 512 / 8,
         }
     }
+    #[inline]
     pub const fn supported<L: Limits>(self) -> bool {
         L::HASH_ALGS.supports_alg(self)
     }
+    #[inline]
     pub const fn from_alg<L: Limits>(a: Alg) -> Option<Self> {
         match a {
             Alg::Sha1 if const { Sha1.supported::<L>() } => Some(Sha1),
@@ -70,11 +73,13 @@ impl From<Option<TpmiAlgHash>> for Alg {
 impl MarshalFixed for TpmiAlgHash {
     const SIZE: usize = 2;
     type Array = [u8; 2];
+    #[inline]
     fn marshal_fixed(&self, arr: &mut [u8; Self::SIZE]) {
         Alg::from(*self).marshal_fixed(arr)
     }
 }
 impl UnmarshalFixed for TpmiAlgHash {
+    #[inline]
     fn unmarshal_fixed<L: Limits>(arr: &Self::Array) -> Result<Self, UnmarshalError> {
         Self::from_alg::<L>(Alg::unmarshal_fixed::<L>(arr)?).ok_or(UnmarshalError)
     }
@@ -82,11 +87,13 @@ impl UnmarshalFixed for TpmiAlgHash {
 impl MarshalFixed for Option<TpmiAlgHash> {
     const SIZE: usize = 2;
     type Array = [u8; 2];
+    #[inline]
     fn marshal_fixed(&self, arr: &mut [u8; Self::SIZE]) {
         Alg::from(*self).marshal_fixed(arr)
     }
 }
 impl UnmarshalFixed for Option<TpmiAlgHash> {
+    #[inline]
     fn unmarshal_fixed<L: Limits>(arr: &Self::Array) -> Result<Self, UnmarshalError> {
         match Alg::unmarshal_fixed::<L>(arr)? {
             Alg::Null => Ok(None),

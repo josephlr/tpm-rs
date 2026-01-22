@@ -29,6 +29,7 @@ pub enum TpmtHa<'a> {
 }
 
 impl<'a> TpmtHa<'a> {
+    #[inline]
     pub const fn hash_alg(self) -> TpmiAlgHash {
         match self {
             Self::Sha1(_) => TpmiAlgHash::Sha1,
@@ -41,6 +42,7 @@ impl<'a> TpmtHa<'a> {
             Self::Sha3_512(_) => TpmiAlgHash::Sha3_512,
         }
     }
+    #[inline]
     pub const fn digest(self) -> &'a [u8] {
         match self {
             Self::Sha1(d) => d,
@@ -53,6 +55,7 @@ impl<'a> TpmtHa<'a> {
             Self::Sha3_512(d) => d,
         }
     }
+    #[inline]
     const fn supported<L: Limits>(self) -> bool {
         self.hash_alg().supported::<L>()
     }
@@ -78,6 +81,41 @@ impl<'a> Marshal for TpmtHa<'a> {
             Self::Sha3_512(d) => d.marshal::<L>(buf),
         }
     }
+    fn marshal2<L: Limits>(&self, buf: &mut &mut [u8]) -> Result<(), MarshalError> {
+        if !self.supported::<L>() {
+            return Err(MarshalError);
+        }
+        self.hash_alg().marshal2::<L>(buf)?;
+        match self {
+            Self::Sha1(d) => d.marshal2::<L>(buf),
+            Self::Sha256(d) => d.marshal2::<L>(buf),
+            Self::Sha384(d) => d.marshal2::<L>(buf),
+            Self::Sha512(d) => d.marshal2::<L>(buf),
+            Self::Sm3_256(d) => d.marshal2::<L>(buf),
+            Self::Sha3_256(d) => d.marshal2::<L>(buf),
+            Self::Sha3_384(d) => d.marshal2::<L>(buf),
+            Self::Sha3_512(d) => d.marshal2::<L>(buf),
+        }
+    }
+
+    fn marshal3<L: Limits>(&self, mut buf: &mut [u8]) -> Result<usize, MarshalError> {
+        if !self.supported::<L>() {
+            return Err(MarshalError);
+        }
+        let mut written = self.hash_alg().marshal3::<L>(buf)?;
+        buf = &mut buf[written..];
+        written += match self {
+            Self::Sha1(d) => d.marshal3::<L>(buf),
+            Self::Sha256(d) => d.marshal3::<L>(buf),
+            Self::Sha384(d) => d.marshal3::<L>(buf),
+            Self::Sha512(d) => d.marshal3::<L>(buf),
+            Self::Sm3_256(d) => d.marshal3::<L>(buf),
+            Self::Sha3_256(d) => d.marshal3::<L>(buf),
+            Self::Sha3_384(d) => d.marshal3::<L>(buf),
+            Self::Sha3_512(d) => d.marshal3::<L>(buf),
+        }?;
+        Ok(written)
+    }
     fn marshaled_size(&self) -> usize {
         2 + self.hash_alg().digest_size()
     }
@@ -98,6 +136,34 @@ impl<'a, 's: 'a> Unmarshal<'s> for TpmtHa<'a> {
             TpmiAlgHash::Sha3_512 => Self::Sha3_512(pop_array(&mut buf)?),
         };
         Ok(buf)
+    }
+
+    fn unmarshal2<L: Limits>(&mut self, buf: &mut &'s [u8]) -> Result<(), UnmarshalError> {
+        *self = match TpmiAlgHash::unmarshal_fixed::<L>(pop_array(buf)?)? {
+            TpmiAlgHash::Sha1 => Self::Sha1(pop_array(buf)?),
+            TpmiAlgHash::Sha256 => Self::Sha256(pop_array(buf)?),
+            TpmiAlgHash::Sha384 => Self::Sha384(pop_array(buf)?),
+            TpmiAlgHash::Sha512 => Self::Sha512(pop_array(buf)?),
+            TpmiAlgHash::Sm3_256 => Self::Sm3_256(pop_array(buf)?),
+            TpmiAlgHash::Sha3_256 => Self::Sha3_256(pop_array(buf)?),
+            TpmiAlgHash::Sha3_384 => Self::Sha3_384(pop_array(buf)?),
+            TpmiAlgHash::Sha3_512 => Self::Sha3_512(pop_array(buf)?),
+        };
+        Ok(())
+    }
+
+    fn unmarshal3<L: Limits>(&mut self, mut buf: &'s [u8]) -> Result<usize, UnmarshalError> {
+        *self = match TpmiAlgHash::unmarshal_fixed::<L>(pop_array(&mut buf)?)? {
+            TpmiAlgHash::Sha1 => Self::Sha1(pop_array(&mut buf)?),
+            TpmiAlgHash::Sha256 => Self::Sha256(pop_array(&mut buf)?),
+            TpmiAlgHash::Sha384 => Self::Sha384(pop_array(&mut buf)?),
+            TpmiAlgHash::Sha512 => Self::Sha512(pop_array(&mut buf)?),
+            TpmiAlgHash::Sm3_256 => Self::Sm3_256(pop_array(&mut buf)?),
+            TpmiAlgHash::Sha3_256 => Self::Sha3_256(pop_array(&mut buf)?),
+            TpmiAlgHash::Sha3_384 => Self::Sha3_384(pop_array(&mut buf)?),
+            TpmiAlgHash::Sha3_512 => Self::Sha3_512(pop_array(&mut buf)?),
+        };
+        Ok(self.marshaled_size())
     }
 }
 

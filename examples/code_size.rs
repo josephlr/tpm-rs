@@ -29,36 +29,32 @@ impl Limits for Large {
     const ECC_CURVES: EccCurves = EccCurves::ALL;
 }
 
-pub fn marshal_small(ha: TpmtHa, buf: &mut [u8]) -> Result<(), MarshalError> {
-    ha.marshal::<Small>(buf)?;
+type L = Large;
+
+pub fn marshal1(ha: TpmtHa, buf: &mut [u8]) -> Result<(), MarshalError> {
+    ha.marshal::<L>(buf)?;
     Ok(())
 }
-pub fn marshal_medium(ha: TpmtHa, buf: &mut [u8]) -> Result<(), MarshalError> {
-    ha.marshal::<Medium>(buf)?;
-    Ok(())
+pub fn marshal2(ha: TpmtHa, mut buf: &mut [u8]) -> Result<(), MarshalError> {
+    ha.marshal2::<L>(&mut buf)
 }
-pub fn marshal_large(ha: TpmtHa, buf: &mut [u8]) -> Result<(), MarshalError> {
-    ha.marshal::<Large>(buf)?;
+pub fn marshal3(ha: TpmtHa, buf: &mut [u8]) -> Result<(), MarshalError> {
+    ha.marshal3::<L>(buf)?;
     Ok(())
 }
 
-pub fn unmarshal_small(buf: &[u8]) -> Result<TpmtHa<'_>, UnmarshalError> {
+pub fn unmarshal1(buf: &[u8]) -> Result<TpmtHa<'_>, UnmarshalError> {
     let mut ha = TpmtHa::Sha256(&[0; Sha256.digest_size()]);
-    ha.unmarshal::<Small>(buf)?;
+    ha.unmarshal::<L>(buf)?;
     Ok(ha)
 }
-pub fn unmarshal_medium(buf: &[u8]) -> Result<TpmtHa<'_>, UnmarshalError> {
+pub fn unmarshal2(mut buf: &[u8]) -> Result<TpmtHa<'_>, UnmarshalError> {
     let mut ha = TpmtHa::Sha256(&[0; Sha256.digest_size()]);
-    ha.unmarshal::<Medium>(buf)?;
+    ha.unmarshal2::<L>(&mut buf)?;
     Ok(ha)
 }
-pub fn unmarshal_large(buf: &[u8]) -> Result<TpmtHa<'_>, UnmarshalError> {
+pub fn unmarshal3(buf: &[u8]) -> Result<TpmtHa<'_>, UnmarshalError> {
     let mut ha = TpmtHa::Sha256(&[0; Sha256.digest_size()]);
-    ha.unmarshal::<Large>(buf)?;
+    ha.unmarshal3::<L>(buf)?;
     Ok(ha)
-}
-
-#[inline(never)]
-pub fn get_digest(ha: TpmtHa<'_>) -> &[u8] {
-    ha.digest()
 }
