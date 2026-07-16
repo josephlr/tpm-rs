@@ -1,25 +1,21 @@
-//! `TPMT_` tagged union types
-
+use crate::{Alg, Marshal, TpmiAlgHash, Unmarshal, errors::UnmarshalError, unmarshal_array_ref};
 use TpmiAlgHash::*;
 
-use crate::{
-    Alg, Limits, Marshal, TpmiAlgHash, Unmarshal, UnmarshalArray,
-    errors::{MarshalError, UnmarshalError},
-};
 /// `TPMT_HA`
 ///
 /// There is no type for `TPMU_HA` in this crate, use this type instead.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u16)]
 pub enum TpmtHa<'a> {
-    Sha1(&'a [u8; Sha1.digest_size()]) = Alg::Sha1.0,
-    Sha256(&'a [u8; Sha256.digest_size()]) = Alg::Sha256.0,
-    Sha384(&'a [u8; Sha384.digest_size()]) = Alg::Sha384.0,
-    Sha512(&'a [u8; Sha512.digest_size()]) = Alg::Sha512.0,
+    Sha1(&'a [u8; Sha1.digest_size()]),
+    Sha256(&'a [u8; Sha256.digest_size()]),
+    Sha384(&'a [u8; Sha384.digest_size()]),
+    Sha512(&'a [u8; Sha512.digest_size()]),
     // TODO: Add other Hash Algs
 }
 
 impl<'a> TpmtHa<'a> {
+    /// Returns the [`TpmiAlgHash`] corresponding to this digest.
     pub const fn hash_alg(self) -> TpmiAlgHash {
         match self {
             Self::Sha1(_) => Sha1,
@@ -28,6 +24,8 @@ impl<'a> TpmtHa<'a> {
             Self::Sha512(_) => Sha512,
         }
     }
+
+    /// Returns the underlying digest byte slice.
     pub fn digest(self) -> &'a [u8] {
         match self {
             Self::Sha1(d) => d,
@@ -38,60 +36,58 @@ impl<'a> TpmtHa<'a> {
     }
 }
 
-impl<'a> Marshal for TpmtHa<'a> {
-    fn marshal<'dst>(
-        &self,
-        limits: impl Limits,
-        buf: &'dst mut [u8],
-    ) -> Result<&'dst mut [u8], MarshalError> {
-        if !limits.supports_hash(self.hash_alg()) {
-            return Err(MarshalError);
-        }
-        let buf = self.hash_alg().marshal(limits, buf)?;
-        match self {
-            Self::Sha1(d) => d.marshal(limits, buf),
-            Self::Sha256(d) => d.marshal(limits, buf),
-            Self::Sha384(d) => d.marshal(limits, buf),
-            Self::Sha512(d) => d.marshal(limits, buf),
-        }
-    }
-    fn marshaled_size(&self) -> usize {
-        2 + self.hash_alg().digest_size()
-    }
-    fn marshaled_size_max(limits: impl Limits) -> usize {
-        2 + limits.max_digest_size()
+const EMPTY_SHA256: &[u8; Sha256.digest_size()] = &[0; Sha256.digest_size()];
+
+impl<'a> Default for TpmtHa<'a> {
+    fn default() -> Self {
+        Self::Sha256(EMPTY_SHA256)
     }
 }
-impl<'a, 'src: 'a> Unmarshal<'src> for TpmtHa<'a> {
-    fn unmarshal(
-        &mut self,
-        limits: impl Limits,
-        buf: &'src [u8],
-    ) -> Result<&'src [u8], UnmarshalError> {
-        let (arr, buf) = buf.split_first_chunk().ok_or(UnmarshalError)?;
 
-        match TpmiAlgHash::unmarshal_array(arr)? {
-            TpmiAlgHash::Sha1 if limits.supports_hash(Sha1) => {
-                let (arr, buf) = buf.split_first_chunk().ok_or(UnmarshalError)?;
-                *self = Self::Sha1(arr);
-                Ok(buf)
-            }
-            TpmiAlgHash::Sha256 if limits.supports_hash(Sha256) => {
-                let (arr, buf) = buf.split_first_chunk().ok_or(UnmarshalError)?;
-                *self = Self::Sha256(arr);
-                Ok(buf)
-            }
-            TpmiAlgHash::Sha384 if limits.supports_hash(Sha384) => {
-                let (arr, buf) = buf.split_first_chunk().ok_or(UnmarshalError)?;
-                *self = Self::Sha384(arr);
-                Ok(buf)
-            }
-            TpmiAlgHash::Sha512 if limits.supports_hash(Sha512) => {
-                let (arr, buf) = buf.split_first_chunk().ok_or(UnmarshalError)?;
-                *self = Self::Sha512(arr);
-                Ok(buf)
-            }
+// *** Marshal/Unmarshal implementations ***
+
+impl<'a> Marshal for TpmtHa<'a> {
+    const MAX_SIZE: usize = Alg::MAX_SIZE + TpmiAlgHash::MAX_DIGEST_SIZE;
+    type MaxBuffer = [u8; TpmtHa::MAX_SIZE];
+
+    fn marshal(&self, dst: &mut [u8; TpmtHa::MAX_SIZE]) -> usize {
+        let hash_alg = Alg::from(self.hash_alg());
+        let len = hash_alg.marshal((&mut dst[..Alg::MAX_SIZE]).try_into().unwrap());
+        let digest = self.digest();
+        dst[len..len + digest.len()].copy_from_slice(digest);
+        len + digest.len()
+    }
+}
+
+impl<'a> Unmarshal<'a> for TpmtHa<'a> {
+    fn unmarshal(src: &mut &'a [u8]) -> Result<Self, UnmarshalError> {
+        let alg = TpmiAlgHash::unmarshal(src)?;
+        match alg {
+            TpmiAlgHash::Sha1 => Ok(TpmtHa::Sha1(unmarshal_array_ref(src)?)),
+            TpmiAlgHash::Sha256 => Ok(TpmtHa::Sha256(unmarshal_array_ref(src)?)),
+            TpmiAlgHash::Sha384 => Ok(TpmtHa::Sha384(unmarshal_array_ref(src)?)),
+            TpmiAlgHash::Sha512 => Ok(TpmtHa::Sha512(unmarshal_array_ref(src)?)),
             _ => Err(UnmarshalError),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tpmt_ha_marshal_unmarshal() {
+        let digest_bytes = [0xAB; 32];
+        let tpmt_ha = TpmtHa::Sha256(&digest_bytes);
+
+        let mut buf = [0u8; TpmtHa::MAX_SIZE];
+        let len = tpmt_ha.marshal(&mut buf);
+        assert_eq!(len, 2 + 32);
+
+        let mut slice = &buf[..len];
+        let unmarshaled = TpmtHa::unmarshal(&mut slice).unwrap();
+        assert_eq!(unmarshaled, tpmt_ha);
+        assert!(slice.is_empty());
     }
 }
