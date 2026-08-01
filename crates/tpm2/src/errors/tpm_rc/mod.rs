@@ -20,8 +20,7 @@ impl TpmRcError {
 
     /// Asymmetric algorithm not supported or not correct for the specified
     /// parameters (`TPM_RC_ASYMMETRIC`).
-    #[allow(non_snake_case)]
-    pub const fn AsymmetricFor(on: ErrorType, pos: ErrorPosition) -> Self {
+    pub const fn asymmetric_for(on: ErrorType, pos: ErrorPosition) -> Self {
         Self::new(Self::Asymmetric.0.get() | on.to_mask() | pos.to_mask())
     }
 
@@ -30,8 +29,7 @@ impl TpmRcError {
 
     /// Value is out of range or is not correct for the context for the specified
     /// parameters (`TPM_RC_VALUE`).
-    #[allow(non_snake_case)]
-    pub const fn ValueFor(on: ErrorType, pos: ErrorPosition) -> Self {
+    pub const fn value_for(on: ErrorType, pos: ErrorPosition) -> Self {
         Self::new(Self::Value.0.get() | on.to_mask() | pos.to_mask())
     }
 
@@ -39,8 +37,7 @@ impl TpmRcError {
     pub const Size: Self = Self::new(Self::RC_FMT1 + 0x015);
 
     /// Structure is the wrong size for the specified parameters (`TPM_RC_SIZE`).
-    #[allow(non_snake_case)]
-    pub const fn SizeFor(on: ErrorType, pos: ErrorPosition) -> Self {
+    pub const fn size_for(on: ErrorType, pos: ErrorPosition) -> Self {
         Self::new(Self::Size.0.get() | on.to_mask() | pos.to_mask())
     }
 
@@ -48,8 +45,7 @@ impl TpmRcError {
     pub const Selector: Self = Self::new(Self::RC_FMT1 + 0x018);
 
     /// Union selector is incorrect for the specified parameters (`TPM_RC_SELECTOR`).
-    #[allow(non_snake_case)]
-    pub const fn SelectorFor(on: ErrorType, pos: ErrorPosition) -> Self {
+    pub const fn selector_for(on: ErrorType, pos: ErrorPosition) -> Self {
         Self::new(Self::Selector.0.get() | on.to_mask() | pos.to_mask())
     }
 

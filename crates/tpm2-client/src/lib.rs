@@ -76,7 +76,7 @@ pub fn run_command_with_handles<
     tpm: &mut T,
 ) -> Result<(CmdT::RespT, CmdT::RespHandles), T::Error> {
     let mut cmd_buffer = [0u8; CMD_BUFFER_SIZE];
-    let mut cmd_header = CmdHeader::new(cmd_sessions.is_empty(), CmdT::CMD_CODE);
+    let mut cmd_header = CmdHeader::new(!cmd_sessions.is_empty(), CmdT::CMD_CODE);
     let mut written = cmd_header
         .try_marshal(&mut cmd_buffer)
         .map_err(TssError::from)?;

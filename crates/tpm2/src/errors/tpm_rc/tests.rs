@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn test_format1() {
-    let error = TpmRcError::AsymmetricFor(ErrorType::Parameter, ErrorPosition::Pos2);
+    let error = TpmRcError::asymmetric_for(ErrorType::Parameter, ErrorPosition::Pos2);
     assert_eq!(error.get(), 0x2C1);
 
     let (on, pos) = error

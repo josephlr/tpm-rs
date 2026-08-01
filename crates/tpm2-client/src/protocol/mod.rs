@@ -27,9 +27,9 @@ pub struct CmdHeader {
 impl CmdHeader {
     pub fn new(has_sessions: bool, code: TpmCc) -> CmdHeader {
         let tag = if has_sessions {
-            TpmiStCommandTag::NoSessions
-        } else {
             TpmiStCommandTag::Sessions
+        } else {
+            TpmiStCommandTag::NoSessions
         };
         CmdHeader { tag, size: 0, code }
     }
@@ -75,21 +75,15 @@ pub fn write_command_sessions<
     let Some(s1) = s1 else {
         return marshal_auth_size(auth_offset, buffer);
     };
-    auth_offset += s1
-        .get_auth_command()
-        .try_marshal(&mut buffer[auth_offset..])?;
+    auth_offset += s1.auth_command().try_marshal(&mut buffer[auth_offset..])?;
     let Some(s2) = s2 else {
         return marshal_auth_size(auth_offset, buffer);
     };
-    auth_offset += s2
-        .get_auth_command()
-        .try_marshal(&mut buffer[auth_offset..])?;
+    auth_offset += s2.auth_command().try_marshal(&mut buffer[auth_offset..])?;
     let Some(s3) = s3 else {
         return marshal_auth_size(auth_offset, buffer);
     };
-    auth_offset += s3
-        .get_auth_command()
-        .try_marshal(&mut buffer[auth_offset..])?;
+    auth_offset += s3.auth_command().try_marshal(&mut buffer[auth_offset..])?;
     marshal_auth_size(auth_offset, buffer)
 }
 

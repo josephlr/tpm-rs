@@ -28,7 +28,7 @@ macro_rules! generate_tss_layer_error {
             pub const NotImplemented: Self = Self::new(6);
             /// Key could not be registered because UUID has already registered
             /// (`TSS_E_KEY_ALREADY_REGISTERED`).
-            pub const KeyAlredyRegistered: Self = Self::new(8);
+            pub const KeyAlreadyRegistered: Self = Self::new(8);
             /// TPM returns with success but TSP/TCS notice that something is wrong
             /// (`TSS_E_TPM_UNEXPECTED`).
             pub const TpmUnexpected: Self = Self::new(16);

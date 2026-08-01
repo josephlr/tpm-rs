@@ -232,7 +232,7 @@ impl TcpConnection {
     ///
     /// Returns an error if the communication with the Platform port fails or if
     /// the response terminator is invalid.
-    pub fn get_command_response_sizes(&mut self) -> Result<GetCommandResponseSizesResponse> {
+    pub fn command_response_sizes(&mut self) -> Result<GetCommandResponseSizesResponse> {
         let cmd_code = U32::new(SimulatorPlatformCommandCode::GetCommandResponseSizes as u32);
         self.plat_tcp.write_all(cmd_code.as_bytes())?;
 
@@ -261,7 +261,7 @@ impl TcpConnection {
     ///
     /// Returns an error if the communication with the Platform port fails or if
     /// the response terminator is invalid.
-    pub fn act_get_signaled(&mut self, act_handle: u32) -> Result<u32> {
+    pub fn act_signaled(&mut self, act_handle: u32) -> Result<u32> {
         let cmd_code = U32::new(SimulatorPlatformCommandCode::ActGetSignaled as u32);
         let cmd_payload = &ActGetSignaledRequest {
             act_handle: U32::new(act_handle),

@@ -14,8 +14,8 @@ use tpm2_rs_base::{
 /// let password1 = PasswordSession::new("hello world").unwrap(); // from a string
 /// let password2 = PasswordSession::new(&[1, 2, 3, 4, 5, 6]).unwrap(); // from a byte array
 ///
-/// assert_eq!(password1.get_secret(), b"hello world");
-/// assert_eq!(password2.get_secret(), &[1, 2, 3, 4, 5, 6]);
+/// assert_eq!(password1.secret(), b"hello world");
+/// assert_eq!(password2.secret(), &[1, 2, 3, 4, 5, 6]);
 /// ```
 #[derive(Debug, PartialEq, Default)]
 pub struct PasswordSession {
@@ -46,13 +46,13 @@ impl PasswordSession {
         })
     }
     /// This function returns the data(password) stored inside a password session
-    pub fn get_secret(&self) -> &[u8] {
+    pub fn secret(&self) -> &[u8] {
         self.auth.get_buffer()
     }
 }
 
 impl Session for PasswordSession {
-    fn get_auth_command(&self) -> TpmsAuthCommand {
+    fn auth_command(&self) -> TpmsAuthCommand {
         TpmsAuthCommand {
             session_handle: TpmiShAuthSession::RS_PW,
             nonce: Tpm2bNonce::default(),
