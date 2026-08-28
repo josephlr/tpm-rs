@@ -3,4 +3,4 @@ services:
     build: .
     volumes:
       - ../../:/tpm-rs
-    command: bash -c 'cargo test -p tpm2-client --test simulator'
+    command: bash -c 'cargo test -p tpm2-client --test simulator -- --ignored'

@@ -20,3 +20,10 @@ connection-tcp = ["dep:zerocopy", "tpm2/std"]
 tpm2 = { workspace = true }
 zerocopy = { workspace = true, optional = true }
 
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[[test]]
+name = "simulator"
+path = "tests/simulator.rs"
+required-features = ["connection-tcp"]
