@@ -1,8 +1,7 @@
-use crate::sessions::Session;
-use tpm2_rs_base::errors::{TpmRcResult, TssResult, TssTcsError};
-use tpm2_rs_base::{
-    Tpm2bAuth, Tpm2bNonce, Tpm2bSimple, TpmaSession, TpmiShAuthSession, TpmsAuthCommand,
-    TpmsAuthResponse,
+use crate::sessions::{AuthError, Session};
+use tpm2::errors::TpmRc;
+use tpm2::{
+    Handle, Tpm2bAuth, Tpm2bNonce, Tpm2bSimple, TpmaSession, TpmsAuthCommand, TpmsAuthResponse,
 };
 
 /// A password session.
@@ -27,20 +26,20 @@ impl PasswordSession {
     /// specified password.
     ///
     /// # Errors:
-    /// Returns [TpmRcError::Size](tpm2_rs_base::errors::TpmRcError::Size) if the
+    /// Returns [TpmRc::SIZE](TpmRc::SIZE) if the
     /// password size in bytes exceeds [`Tpm2bAuth::MAX_BUFFER_SIZE`].
     ///
     /// ```
-    /// use tpm2_rs_base::{errors::TpmRcError, Tpm2bAuth, Tpm2bSimple};
+    /// use tpm2::{errors::TpmRc, Tpm2bAuth, Tpm2bSimple};
     /// use tpm2_client::sessions::PasswordSession;
     ///
     /// let bad_password = [0u8; Tpm2bAuth::MAX_BUFFER_SIZE + 1];
     /// assert_eq!(
     ///     PasswordSession::new(&bad_password).err().unwrap(),
-    ///     TpmRcError::Size
+    ///     TpmRc::SIZE.to_rc()
     /// );
     /// ```
-    pub fn new<T: AsRef<[u8]> + ?Sized>(password: &T) -> TpmRcResult<Self> {
+    pub fn new<T: AsRef<[u8]> + ?Sized>(password: &T) -> Result<Self, TpmRc> {
         Ok(PasswordSession {
             auth: Tpm2bAuth::from_bytes(password.as_ref())?,
         })
@@ -54,19 +53,19 @@ impl PasswordSession {
 impl Session for PasswordSession {
     fn auth_command(&self) -> TpmsAuthCommand {
         TpmsAuthCommand {
-            session_handle: TpmiShAuthSession::RS_PW,
+            session_handle: Handle::RS_PW,
             nonce: Tpm2bNonce::default(),
             session_attributes: TpmaSession(0),
             hmac: self.auth,
         }
     }
-    fn validate_auth_response(&self, auth: &TpmsAuthResponse) -> TssResult<()> {
+    fn validate_auth_response(&self, auth: &TpmsAuthResponse) -> Result<(), AuthError> {
         // Password response auth should have empty nonce/hmac and ContinueSession attribute.
         if auth.nonce.get_size() != 0
             || auth.session_attributes.0 != 0x1
             || auth.hmac.get_size() != 0
         {
-            Err(TssTcsError::BadParameter.into())
+            Err(AuthError::InvalidResponse)
         } else {
             Ok(())
         }

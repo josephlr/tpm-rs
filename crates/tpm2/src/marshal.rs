@@ -1,27 +1,8 @@
 //! Marshalling and Unmarshalling traits
-use core::fmt;
-
 use crate::errors::UnmarshalError;
 
 /// A type that can be marshalled into a destination byte buffer.
-///
-/// [`Self::MaxBuffer`] is always [`[u8; Self::MAX_SIZE]`](Self::MAX_SIZE),
-/// so types should implement this trait like:
-/// ```
-/// # use tpm2::Marshal;
-/// # const fn calculate_foo_max_size() -> usize { 42 }
-/// struct Foo;
-///
-/// impl Marshal for Foo {
-///     const MAX_SIZE: usize = calculate_foo_max_size();
-///     type MaxBuffer = [u8; Self::MAX_SIZE];
-///
-///     fn marshal(&self, dst: &mut [u8; Self::MAX_SIZE]) -> usize {
-///         todo!()
-///     }
-/// }
-/// ```
-pub trait Marshal {
+pub trait Marshal: Sized {
     /// The maximum possible size (in bytes) of this structure when encoded.
     const MAX_SIZE: usize;
     /// [`[u8; Self::MAX_SIZE]`](Self::MAX_SIZE)
@@ -34,6 +15,26 @@ pub trait Marshal {
     /// Marshals the structure into the provided array, which will always be
     /// `&mut`[`[u8; Self::MAX_SIZE]`](Self::MAX_SIZE).
     fn marshal(&self, dst: &mut Self::MaxBuffer) -> usize;
+}
+
+pub(crate) fn marshal_helper<const N: usize>(
+    t: &impl Marshal<MaxBuffer = [u8; N]>,
+    dst: &mut [u8],
+    count: usize,
+) -> usize {
+    count + t.marshal(dst[count..].first_chunk_mut().unwrap())
+}
+
+pub(crate) const fn max(vals: &[usize]) -> usize {
+    let mut max_val = 0;
+    let mut i = 0;
+    while i < vals.len() {
+        if vals[i] > max_val {
+            max_val = vals[i];
+        }
+        i += 1;
+    }
+    max_val
 }
 
 /// A type that can be unmarshalled from a source byte buffer.
@@ -57,98 +58,79 @@ pub trait Unmarshal<'a>: Sized {
 impl<const N: usize> Marshal for [u8; N] {
     const MAX_SIZE: usize = N;
     type MaxBuffer = [u8; N];
-    #[inline(always)]
     fn marshal(&self, dst: &mut [u8; N]) -> usize {
         *dst = *self;
         N
     }
 }
-
-/// Unmarshals a reference to a fixed-size byte array `&'a [u8; N]` from `src`.
-#[inline(always)]
-pub(crate) fn unmarshal_array_ref<'a, const N: usize>(
-    src: &mut &'a [u8],
-) -> Result<&'a [u8; N], UnmarshalError> {
-    let (arr, rest) = src.split_first_chunk().ok_or(UnmarshalError)?;
-    *src = rest;
-    Ok(arr)
-}
-
-impl<'a, const N: usize> Unmarshal<'a> for [u8; N] {
-    #[inline(always)]
-    fn unmarshal(src: &mut &'a [u8]) -> Result<Self, UnmarshalError> {
-        unmarshal_array_ref(src).copied()
-    }
-    #[inline(always)]
-    fn unmarshal_ref(&mut self, mut src: &'a [u8]) -> Result<&'a [u8], UnmarshalError> {
-        *self = *unmarshal_array_ref(&mut src)?;
-        Ok(src)
-    }
-}
 impl<'a, const N: usize> Unmarshal<'a> for &'a [u8; N] {
-    #[inline(always)]
     fn unmarshal(src: &mut &'a [u8]) -> Result<Self, UnmarshalError> {
-        unmarshal_array_ref(src)
-    }
-    #[inline(always)]
-    fn unmarshal_ref(&mut self, mut src: &'a [u8]) -> Result<&'a [u8], UnmarshalError> {
-        *self = unmarshal_array_ref(&mut src)?;
-        Ok(src)
+        let (arr, rest) = src.split_first_chunk().ok_or(UnmarshalError)?;
+        *src = rest;
+        Ok(arr)
     }
 }
-
-/// A wrapper type for numeric values stored in big-endian byte order.
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
-#[repr(transparent)]
-pub(crate) struct BE<T>(pub(crate) T);
+impl<'a, const N: usize> Unmarshal<'a> for [u8; N] {
+    fn unmarshal(src: &mut &'a [u8]) -> Result<Self, UnmarshalError> {
+        let arr: &'a [u8; N] = Unmarshal::unmarshal(src)?;
+        Ok(*arr)
+    }
+}
 
 macro_rules! impl_ints { ($($T: ty),+) => { $(
     impl Marshal for $T {
         const MAX_SIZE: usize = size_of::<Self>();
         type MaxBuffer = [u8; Self::MAX_SIZE];
 
-        #[inline(always)]
         fn marshal(&self, dst: &mut [u8; Self::MAX_SIZE]) -> usize {
             self.to_be_bytes().marshal(dst)
         }
     }
     impl<'a> Unmarshal<'a> for $T {
-        #[inline(always)]
-        fn unmarshal(src: &mut &[u8]) -> Result<Self, UnmarshalError> {
+        fn unmarshal(src: &mut &'a [u8]) -> Result<Self, UnmarshalError> {
             Unmarshal::unmarshal(src).map(Self::from_be_bytes)
-        }
-    }
-
-    impl BE<$T> {
-        #[inline(always)]
-        #[allow(dead_code)]
-        pub const fn new(t: $T) -> Self {
-            Self(t.to_be())
-        }
-        #[inline(always)]
-        pub const fn get(self) -> $T {
-            <$T>::from_be(self.0)
-        }
-    }
-    impl Marshal for BE<$T> {
-        const MAX_SIZE: usize = size_of::<Self>();
-        type MaxBuffer = [u8; Self::MAX_SIZE];
-
-        #[inline(always)]
-        fn marshal(&self, dst: &mut [u8; Self::MAX_SIZE]) -> usize {
-            self.0.to_ne_bytes().marshal(dst)
-        }
-    }
-    impl<'a> Unmarshal<'a> for BE<$T> {
-        #[inline(always)]
-        fn unmarshal(src: &mut &[u8]) -> Result<Self, UnmarshalError> {
-            Ok(Self(<$T>::from_ne_bytes(Unmarshal::unmarshal(src)?)))
-        }
-    }
-    impl fmt::Debug for BE<$T> {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            self.get().fmt(f)
         }
     }
 )+ } }
 impl_ints!(u8, u16, u32, u64, i8, i16, i32, i64);
+
+impl Marshal for bool {
+    const MAX_SIZE: usize = u8::MAX_SIZE;
+    type MaxBuffer = [u8; Self::MAX_SIZE];
+
+    fn marshal(&self, dst: &mut [u8; Self::MAX_SIZE]) -> usize {
+        u8::from(*self).marshal(dst)
+    }
+}
+impl<'a> Unmarshal<'a> for bool {
+    fn unmarshal(src: &mut &'a [u8]) -> Result<Self, UnmarshalError> {
+        u8::unmarshal(src)?.try_into().map_err(|_| UnmarshalError)
+    }
+}
+
+impl Marshal for () {
+    const MAX_SIZE: usize = 0;
+    type MaxBuffer = [u8; 0];
+
+    fn marshal(&self, _dst: &mut Self::MaxBuffer) -> usize {
+        0
+    }
+}
+impl<'a> Unmarshal<'a> for () {
+    fn unmarshal(_src: &mut &'a [u8]) -> Result<Self, UnmarshalError> {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_max() {
+        assert_eq!(max(&[]), 0);
+        assert_eq!(max(&[5]), 5);
+        assert_eq!(max(&[1, 5, 3, 9, 2]), 9);
+        assert_eq!(max(&[10, 20, 30]), 30);
+    }
+}

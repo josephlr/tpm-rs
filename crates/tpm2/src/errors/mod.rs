@@ -1,72 +1,39 @@
-//! Errors used throughout this base crate.
+//! TPM 2.0 Error Types
+//!
+//! This module implements the TPM 2.0 Response Codes (TPM_RC) defined in
+//! **Part 2: Structures, Section 6** of the TPM 2.0 Specification, as well as
+//! error types for unmarshalling and hash algorithm operations:
+//!
+//! - [`TpmRc`]: TPM 2.0 response codes (`TPM_RC`) returned by the TPM device itself.
+//! - [`UnmarshalError`]: Error returned when unmarshalling data fails.
+//!
+//! When a TPM command fails, the TPM returns a 32-bit response code (`TPM_RC`) that
+//! describes the failure. The specification defines two formats for response codes:
+//!
+//! - **Format 0 (Simple)**: Standard error codes that indicate general TPM failures
+//!   (e.g., initialization state, resource exhaustion, self-test failures).
+//! - **Format 1 (Format-On-Error)**: Detailed error codes that pinpoint the exact
+//!   position (parameter, handle, or session) and reason for failure
+//!   (e.g., parameter value out of range, invalid handle, session authorization failure).
+use core::{error, fmt};
 
-use core::convert::Infallible;
-use core::convert::TryFrom;
-use core::error::Error;
-use core::fmt;
-use core::num::NonZeroU32;
-use core::result::{Result, Result::*};
-
-pub use tpm_rc::*;
-pub use tss_rc::*;
-
-#[cfg(feature = "std")]
-mod std;
 mod tpm_rc;
-mod tss_rc;
+pub use tpm_rc::{Fmt1, Position, TpmRc};
 
-/// Any error which can happen when unmarshalling
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Error returned when unmarshalling data fails.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnmarshalError;
 
-impl From<Infallible> for UnmarshalError {
-    fn from(value: Infallible) -> Self {
-        match value {}
-    }
-}
-
-/// Specific error type corresponding to TPM_RC_HASH
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct HashError;
-
-impl From<HashError> for UnmarshalError {
-    fn from(_: HashError) -> Self {
-        Self
-    }
-}
-
-/// Represents success or [`TssError`] failure, which can happen at any layer.
-pub type TssResult<T> = Result<T, TssError>;
-
-/// A TSS error that can occur at any layer, e.g. Service (`TpmRcError`) and Client errors
-/// can be coalesced into this error type.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-pub struct TssError(NonZeroU32);
-impl TssError {
-    /// Returns the underlying non-zero `u32`.
-    pub const fn get(self) -> u32 {
-        self.0.get()
-    }
-}
-
-impl fmt::Display for TssError {
+impl fmt::Display for UnmarshalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.get())
+        write!(f, "unmarshal error")
     }
 }
 
-impl Error for TssError {}
+impl error::Error for UnmarshalError {}
 
-/// Error returned when trying to convert `0` into `TssError`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TssErrorCannotBeZero;
-
-impl TryFrom<u32> for TssError {
-    type Error = TssErrorCannotBeZero;
-    fn try_from(val: u32) -> Result<Self, Self::Error> {
-        match NonZeroU32::try_from(val) {
-            Ok(val) => Ok(TssError(val)),
-            Err(_) => Err(TssErrorCannotBeZero),
-        }
+impl From<UnmarshalError> for TpmRc {
+    fn from(_: UnmarshalError) -> Self {
+        TpmRc::SIZE.to_rc()
     }
 }

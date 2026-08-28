@@ -3,8 +3,7 @@ use crate::buffers::{InOutBuffer, SeparateBuffers};
 use crate::handler::CommandHandler;
 use crate::platform::{TpmBuffers, TpmContextDeps, TpmReadBuffer, TpmWriteBuffer};
 use crate::req_resp::RequestResponseCursor;
-use tpm2_rs_base::constants::TpmCc;
-use tpm2_rs_base::errors::TpmRcError;
+use tpm2::{TpmCc, errors::TpmRc};
 
 /// The object that processes incoming TPM requests and produces the corresponding TPM response.
 pub struct TpmContext<Deps: TpmContextDeps> {
@@ -47,7 +46,7 @@ impl<Deps: TpmContextDeps> TpmContext<Deps> {
         }
     }
 
-    fn fill_error(&mut self, response: &mut Deps::Response, error: TpmRcError) -> usize {
+    fn fill_error(&mut self, response: &mut Deps::Response, error: TpmRc) -> usize {
         // TODO fill out more of the TPM header for an error
         if response.write(6, &error.get().to_be_bytes()).is_err() {
             return 0;
@@ -55,24 +54,24 @@ impl<Deps: TpmContextDeps> TpmContext<Deps> {
         10
     }
 
-    fn execute_command(&mut self, buffers: impl TpmBuffers) -> Result<usize, TpmRcError> {
+    fn execute_command(&mut self, buffers: impl TpmBuffers) -> Result<usize, TpmRc> {
         let request_size = buffers.get_request().len();
         const CMD_HANDLER_RESPONSE_OFFSET: usize = 10;
         let mut request_and_response =
             RequestResponseCursor::new(buffers, CMD_HANDLER_RESPONSE_OFFSET);
         let mut request = request_and_response.request();
-        let _session = request.read_be_u16().ok_or(TpmRcError::CommandSize)?;
-        let size = request.read_be_u32().ok_or(TpmRcError::CommandSize)?;
+        let _session = request.read_be_u16().ok_or(TpmRc::COMMAND_SIZE)?;
+        let size = request.read_be_u32().ok_or(TpmRc::COMMAND_SIZE)?;
         if size as usize != request_size {
-            return Err(TpmRcError::CommandSize);
+            return Err(TpmRc::COMMAND_SIZE);
         }
-        let command_code = request.read_be_u32().ok_or(TpmRcError::CommandSize)?;
+        let command_code = request.read_be_u32().ok_or(TpmRc::COMMAND_SIZE)?;
 
         // TODO, if _session is not NoSession, then parse session stuff here
 
-        match TpmCc(command_code) {
+        match TpmCc::from(command_code) {
             TpmCc::GetRandom => self.handler.get_random(request),
-            _ => Err(TpmRcError::CommandCode),
+            _ => Err(TpmRc::COMMAND_CODE),
         }?;
 
         let response_size = request_and_response.last_response_byte_written();
@@ -81,15 +80,15 @@ impl<Deps: TpmContextDeps> TpmContext<Deps> {
         let session_tag = 0x8001_u16;
         response
             .write(0, &(session_tag).to_be_bytes())
-            .or(Err(TpmRcError::Memory))?;
+            .map_err(|_| TpmRc::MEMORY)?;
 
         response
             .write(2, &(response_size as u32).to_be_bytes())
-            .or(Err(TpmRcError::Memory))?;
+            .map_err(|_| TpmRc::MEMORY)?;
         const SUCCESS_STATUS: u32 = 0;
         response
             .write(6, &SUCCESS_STATUS.to_be_bytes())
-            .or(Err(TpmRcError::Memory))?;
+            .map_err(|_| TpmRc::MEMORY)?;
 
         Ok(response_size)
     }

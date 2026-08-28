@@ -4,7 +4,7 @@ use std::vec::Vec;
 
 use crate::platform::TpmContextDeps;
 
-use super::tpmctx::*;
+use super::TpmContext;
 use drbg::FakeDrbg;
 use entropy::FakeEntropy;
 use hex_literal::hex;

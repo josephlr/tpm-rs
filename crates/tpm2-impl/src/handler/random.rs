@@ -1,4 +1,4 @@
-use tpm2_rs_base::errors::TpmRcError;
+use tpm2::errors::TpmRc;
 
 use crate::{
     ServerError,
@@ -29,16 +29,16 @@ impl<Deps: TpmContextDeps> CommandHandler<Deps> {
     pub fn get_random(
         &mut self,
         request_response: RequestThenResponse<impl TpmBuffers>,
-    ) -> Result<(), TpmRcError> {
+    ) -> Result<(), TpmRc> {
         let mut request = request_response;
-        let requested_bytes = request.read_be_u16().ok_or(TpmRcError::CommandSize)? as usize;
+        let requested_bytes = request.read_be_u16().ok_or(TpmRc::COMMAND_SIZE)? as usize;
 
         let mut response = request.into_response();
         response
             .write_callback(requested_bytes, |buffer| {
                 self.get_random_or_faiure_mode(buffer)
             })
-            .map_err(|_| TpmRcError::Memory)?;
+            .map_err(|_| TpmRc::MEMORY)?;
         Ok(())
     }
 }

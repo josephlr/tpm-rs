@@ -57,20 +57,47 @@
 //! Internally, we use submodules for code organization, but mostly present a
 //! flat API to external users, with the exception of the [`commands`] and
 //! [`errors`] submodules.
-#![no_std]
+#![cfg_attr(not(test), no_std)]
+#![forbid(unsafe_code)]
+#![forbid(unreachable_pub)]
+#![allow(clippy::large_enum_variant)]
 
 pub mod commands;
-pub use commands::Command;
-pub mod errors;
-
-// Reexport for a flat API.
-mod marshal;
-pub use marshal::*;
 mod constants;
+pub mod errors;
+mod marshal;
+#[cfg(feature = "std")]
+mod std;
+mod structures;
+
 pub use constants::*;
-mod tpm2b;
-pub use tpm2b::*;
-mod tpmi;
-pub use tpmi::*;
-mod tpmt;
-pub use tpmt::*;
+pub use marshal::{Marshal, Unmarshal};
+pub use structures::*;
+
+/// Trait for a TPM command transaction.
+pub trait Command: Marshal {
+    /// The command code.
+    const CMD_CODE: TpmCc;
+    /// The response parameters type.
+    type Response<'a>: Marshal + Unmarshal<'a>;
+}
+
+/// Common trait for communicating with a TPM.
+pub trait Connection {
+    /// The type returned if [`Connection::transact`] fails.
+    ///
+    /// This type does not include `TPM_RC` errors, only errors related to the
+    /// connection itself. If the connection can never fail, this can be
+    /// [`Infallible`](core::convert::Infallible).
+    type Error: core::error::Error;
+
+    /// Perform a command/response transaction with the TPM.
+    ///
+    /// Returns a slice of the response containing the bytes that were returned
+    /// from the TPM.
+    ///
+    /// Note that even if the response contains a `TPM_RC` error, this method
+    /// still returns `Ok(...)`. `Err` is only returned when we are unable to
+    /// get a response at all.
+    fn transact<'a>(&mut self, cmd: &[u8], rsp: &'a mut [u8]) -> Result<&'a mut [u8], Self::Error>;
+}

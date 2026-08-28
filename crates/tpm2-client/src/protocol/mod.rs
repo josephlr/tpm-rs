@@ -1,11 +1,8 @@
-//! Low-level TPM 2.0 protocol structures and utility functions.
-
+use crate::ClientError;
 use crate::sessions::{AuthorizationArea, Session};
 use core::mem::size_of;
-use tpm2_rs_base::constants::{TpmCc, TpmSt};
-use tpm2_rs_base::errors::{TssError, TssResult};
-use tpm2_rs_base::marshal::{Marshalable, UnmarshalBuf};
-use tpm2_rs_base::{TpmiStCommandTag, TpmsAuthResponse};
+pub use tpm2::{CommandHeader, ResponseHeader};
+use tpm2::{Marshal, TpmsAuthResponse, Unmarshal, errors::UnmarshalError};
 
 /// Maximum buffer size for sending TPM commands.
 pub const CMD_BUFFER_SIZE: usize = 4096;
@@ -13,46 +10,15 @@ pub const CMD_BUFFER_SIZE: usize = 4096;
 /// Maximum buffer size for receiving TPM responses.
 pub const RESP_BUFFER_SIZE: usize = 4096;
 
-/// TPM 2.0 Command Header
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Marshalable)]
-pub struct CmdHeader {
-    /// Command tag indicating session usage (`TPM_ST_NO_SESSIONS` or `TPM_ST_SESSIONS`).
-    pub tag: TpmiStCommandTag,
-    /// Total size in bytes of the command including this header.
-    pub size: u32,
-    /// Command code (`TPM_CC`).
-    pub code: TpmCc,
-}
-impl CmdHeader {
-    pub fn new(has_sessions: bool, code: TpmCc) -> CmdHeader {
-        let tag = if has_sessions {
-            TpmiStCommandTag::Sessions
-        } else {
-            TpmiStCommandTag::NoSessions
-        };
-        CmdHeader { tag, size: 0, code }
-    }
-}
-
-/// TPM 2.0 Response Header
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Marshalable)]
-pub struct RespHeader {
-    /// Response tag which matches the corresponding tag in the command.
-    pub tag: TpmSt,
-    /// Total size in bytes of the response including this header.
-    pub size: u32,
-    /// Response code (`TPM_RC`).
-    pub rc: u32,
-}
-
 /// Marshals the auth_size parameter of the session area into the given
 /// `buffer`, which should point to the beginning of the session area.
 /// `auth_offset` indicates the offset to the end of the authorization area
-fn marshal_auth_size(auth_offset: usize, buffer: &mut [u8]) -> TssResult<usize> {
+fn marshal_auth_size(auth_offset: usize, buffer: &mut [u8]) -> Result<usize, UnmarshalError> {
     let auth_size = (auth_offset - size_of::<u32>()) as u32;
-    auth_size.try_marshal(buffer)?;
+    if buffer.len() < 4 {
+        return Err(UnmarshalError);
+    }
+    auth_size.marshal((&mut buffer[..4]).try_into().unwrap());
     Ok(auth_offset)
 }
 
@@ -66,7 +32,7 @@ pub fn write_command_sessions<
 >(
     sessions: &AA,
     buffer: &mut [u8],
-) -> TssResult<usize> {
+) -> Result<usize, UnmarshalError> {
     if sessions.is_empty() {
         return Ok(0);
     }
@@ -75,48 +41,68 @@ pub fn write_command_sessions<
     let Some(s1) = s1 else {
         return marshal_auth_size(auth_offset, buffer);
     };
-    auth_offset += s1.auth_command().try_marshal(&mut buffer[auth_offset..])?;
+    if buffer.len() < auth_offset + tpm2::TpmsAuthCommand::MAX_SIZE {
+        return Err(UnmarshalError);
+    }
+    auth_offset += s1.auth_command().marshal(
+        (&mut buffer[auth_offset..auth_offset + tpm2::TpmsAuthCommand::MAX_SIZE])
+            .try_into()
+            .unwrap(),
+    );
     let Some(s2) = s2 else {
         return marshal_auth_size(auth_offset, buffer);
     };
-    auth_offset += s2.auth_command().try_marshal(&mut buffer[auth_offset..])?;
+    if buffer.len() < auth_offset + tpm2::TpmsAuthCommand::MAX_SIZE {
+        return Err(UnmarshalError);
+    }
+    auth_offset += s2.auth_command().marshal(
+        (&mut buffer[auth_offset..auth_offset + tpm2::TpmsAuthCommand::MAX_SIZE])
+            .try_into()
+            .unwrap(),
+    );
     let Some(s3) = s3 else {
         return marshal_auth_size(auth_offset, buffer);
     };
-    auth_offset += s3.auth_command().try_marshal(&mut buffer[auth_offset..])?;
+    if buffer.len() < auth_offset + tpm2::TpmsAuthCommand::MAX_SIZE {
+        return Err(UnmarshalError);
+    }
+    auth_offset += s3.auth_command().marshal(
+        (&mut buffer[auth_offset..auth_offset + tpm2::TpmsAuthCommand::MAX_SIZE])
+            .try_into()
+            .unwrap(),
+    );
     marshal_auth_size(auth_offset, buffer)
 }
 
 /// Unmarshals the response header from the given `buffer`.
-pub fn read_response_header(buffer: &[u8]) -> TssResult<(RespHeader, usize)> {
-    let mut unmarsh = UnmarshalBuf::new(buffer);
-    let resp_header = RespHeader::try_unmarshal(&mut unmarsh)?;
-    if let Ok(error) = TssError::try_from(resp_header.rc) {
-        return TssResult::Err(error);
-    }
-    Ok((resp_header, buffer.len() - unmarsh.len()))
+pub fn read_response_header<E>(buffer: &[u8]) -> Result<(ResponseHeader, usize), ClientError<E>> {
+    let mut slice = buffer;
+    let resp_header = ResponseHeader::unmarshal(&mut slice)?;
+    resp_header.rc?;
+    Ok((resp_header, buffer.len() - slice.len()))
 }
 
 /// Unmarshals the session area (0-3 `TPMS_AUTH_RESPONSE` structs) from the
 /// given `buffer`.
 pub fn read_response_sessions<
+    E,
     X: Session,
     Y: Session,
     Z: Session,
     AA: AuthorizationArea<X, Y, Z>,
 >(
     sessions: &AA,
-    buffer: &mut UnmarshalBuf,
-) -> TssResult<()> {
+    slice: &mut &[u8],
+) -> Result<(), ClientError<E>> {
     let (s1, s2, s3) = sessions.decompose_ref();
     let Some(s1) = s1 else { return Ok(()) };
-    let auth = TpmsAuthResponse::try_unmarshal(buffer)?;
+    let auth = TpmsAuthResponse::unmarshal(slice)?;
     s1.validate_auth_response(&auth)?;
     let Some(s2) = s2 else { return Ok(()) };
-    let auth = TpmsAuthResponse::try_unmarshal(buffer)?;
+    let auth = TpmsAuthResponse::unmarshal(slice)?;
     s2.validate_auth_response(&auth)?;
     let Some(s3) = s3 else { return Ok(()) };
-    let auth = TpmsAuthResponse::try_unmarshal(buffer)?;
+    let auth = TpmsAuthResponse::unmarshal(slice)?;
     s3.validate_auth_response(&auth)?;
     Ok(())
 }

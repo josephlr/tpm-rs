@@ -10,7 +10,7 @@ extern crate std;
 
 use std::ffi::OsStr;
 use std::format;
-use std::io::{Error, ErrorKind, IoSlice, Read, Result, Write};
+use std::io::{self, Error, ErrorKind, IoSlice, Read, Write};
 use std::net::TcpStream;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
@@ -52,7 +52,7 @@ impl TcpConnection {
         ip: &str,
         tpm_port: Option<u16>,
         plat_port: Option<u16>,
-    ) -> Result<TcpConnection> {
+    ) -> io::Result<TcpConnection> {
         let tpm_port = tpm_port.unwrap_or(SIMULATOR_DEFAULT_TPM_PORT);
         let plat_port = plat_port.unwrap_or(SIMULATOR_DEFAULT_PLATFORM_PORT);
 
@@ -73,7 +73,7 @@ impl TcpConnection {
         ip: &str,
         tpm_port: Option<u16>,
         plat_port: Option<u16>,
-    ) -> Result<TcpConnection> {
+    ) -> io::Result<TcpConnection> {
         let mut attempts = 0;
         let conn = loop {
             attempts += 1;
@@ -96,7 +96,7 @@ impl TcpConnection {
     ///
     /// Returns an error if the communication with the TPM fails or if the
     /// response terminator is invalid.
-    pub fn hcrtm_sequence(&mut self, data: &[u8]) -> Result<()> {
+    pub fn hcrtm_sequence(&mut self, data: &[u8]) -> io::Result<()> {
         // Send TPM_Hash_Start
         let cmd_code = U32::new(SimulatorTpmCommandCode::SignalHashStart as u32);
         self.tpm_tcp.write_all(cmd_code.as_bytes())?;
@@ -134,7 +134,7 @@ impl TcpConnection {
     ///
     /// Returns an error if the communication with the TPM fails or if the
     /// response terminator is invalid.
-    pub fn remote_handshake(&mut self, client_version: u32) -> Result<RemoteHandshakeResponse> {
+    pub fn remote_handshake(&mut self, client_version: u32) -> io::Result<RemoteHandshakeResponse> {
         let cmd_code = U32::new(SimulatorTpmCommandCode::RemoteHandshake as u32);
         let cmd_payload = &RemoteHandshakeRequest {
             client_version: U32::new(client_version),
@@ -165,7 +165,7 @@ impl TcpConnection {
     ///
     /// Returns an error if the communication with the TPM fails or if the
     /// response terminator is invalid.
-    pub fn set_alternative_result(&mut self, result: u32) -> Result<()> {
+    pub fn set_alternative_result(&mut self, result: u32) -> io::Result<()> {
         let cmd_code = U32::new(SimulatorTpmCommandCode::SetAlternativeResult as u32);
         let cmd_payload = &SetAlternativeResultRequest {
             result: U32::new(result),
@@ -191,7 +191,7 @@ impl TcpConnection {
     ///
     /// Returns an error if the communication with the Platform port fails or if
     /// the response terminator is invalid.
-    pub fn platform_signal(&mut self, signal: SimulatorPlatformSignal) -> Result<()> {
+    pub fn platform_signal(&mut self, signal: SimulatorPlatformSignal) -> io::Result<()> {
         let cmd_code = U32::new(signal as u32);
         self.plat_tcp.write_all(cmd_code.as_bytes())?;
 
@@ -204,7 +204,7 @@ impl TcpConnection {
     /// # Errors
     ///
     /// Returns an error if any of the plaform signals fail.
-    pub fn reinit(&mut self) -> Result<()> {
+    pub fn reinit(&mut self) -> io::Result<()> {
         self.platform_signal(SimulatorPlatformSignal::NvOff)?;
         self.platform_signal(SimulatorPlatformSignal::PowerOff)?;
         self.platform_signal(SimulatorPlatformSignal::PowerOn)?;
@@ -218,7 +218,7 @@ impl TcpConnection {
     ///
     /// Returns an error if the communication with the Platform port fails or if
     /// the response terminator is invalid.
-    pub fn test_failure_mode(&mut self) -> Result<()> {
+    pub fn test_failure_mode(&mut self) -> io::Result<()> {
         let cmd_code = U32::new(SimulatorPlatformCommandCode::TestFailureMode as u32);
         self.plat_tcp.write_all(cmd_code.as_bytes())?;
 
@@ -232,7 +232,7 @@ impl TcpConnection {
     ///
     /// Returns an error if the communication with the Platform port fails or if
     /// the response terminator is invalid.
-    pub fn command_response_sizes(&mut self) -> Result<GetCommandResponseSizesResponse> {
+    pub fn command_response_sizes(&mut self) -> io::Result<GetCommandResponseSizesResponse> {
         let cmd_code = U32::new(SimulatorPlatformCommandCode::GetCommandResponseSizes as u32);
         self.plat_tcp.write_all(cmd_code.as_bytes())?;
 
@@ -261,7 +261,7 @@ impl TcpConnection {
     ///
     /// Returns an error if the communication with the Platform port fails or if
     /// the response terminator is invalid.
-    pub fn act_signaled(&mut self, act_handle: u32) -> Result<u32> {
+    pub fn act_signaled(&mut self, act_handle: u32) -> io::Result<u32> {
         let cmd_code = U32::new(SimulatorPlatformCommandCode::ActGetSignaled as u32);
         let cmd_payload = &ActGetSignaledRequest {
             act_handle: U32::new(act_handle),
@@ -292,7 +292,7 @@ impl TcpConnection {
     ///
     /// Returns an error if the communication with the Platform port fails or if
     /// the response terminator is invalid.
-    pub fn set_firmware_hash(&mut self, hash: u32) -> Result<()> {
+    pub fn set_firmware_hash(&mut self, hash: u32) -> io::Result<()> {
         let cmd_code = U32::new(SimulatorPlatformCommandCode::SetFirmwareHash as u32);
         let cmd_payload = &SetFirmwareHashRequest {
             hash: U32::new(hash),
@@ -318,7 +318,7 @@ impl TcpConnection {
     ///
     /// Returns an error if the communication with the Platform port fails or if
     /// the response terminator is invalid.
-    pub fn set_firmware_svn(&mut self, svn: u32) -> Result<()> {
+    pub fn set_firmware_svn(&mut self, svn: u32) -> io::Result<()> {
         let cmd_code = U32::new(SimulatorPlatformCommandCode::SetFirmwareSvn as u32);
         let cmd_payload = &SetFirmwareSvnRequest { svn: U32::new(svn) };
 
@@ -348,7 +348,7 @@ impl TcpConnection {
     ///
     /// Returns an error if the communication with the TPM or Platform port
     /// fails.
-    pub fn session_end(&mut self) -> Result<()> {
+    pub fn session_end(&mut self) -> io::Result<()> {
         let cmd_code = U32::new(SimulatorTpmCommandCode::SessionEnd as u32);
         self.tpm_tcp.write_all(cmd_code.as_bytes())?;
         self.tpm_tcp.shutdown(std::net::Shutdown::Both)?;
@@ -366,7 +366,7 @@ impl TcpConnection {
     ///
     /// Returns an error if the communication with the TPM or Platform port
     /// fails.
-    pub fn stop_simulator(&mut self) -> Result<()> {
+    pub fn stop_simulator(&mut self) -> io::Result<()> {
         let cmd_code = U32::new(SimulatorTpmCommandCode::Stop as u32);
         self.tpm_tcp.write_all(cmd_code.as_bytes())?;
         self.tpm_tcp.shutdown(std::net::Shutdown::Both)?;
@@ -379,7 +379,7 @@ impl TcpConnection {
     }
 
     /// Reads the trailing zero from the TPM simulator response.
-    fn check_response_end(stream: &mut TcpStream) -> Result<()> {
+    fn check_response_end(stream: &mut TcpStream) -> io::Result<()> {
         let mut resp_end = U32::ZERO;
         stream.read_exact(resp_end.as_mut_bytes())?;
         if resp_end != U32::ZERO {
@@ -394,7 +394,7 @@ impl TcpConnection {
 
 impl Connection for TcpConnection {
     type Error = std::io::Error;
-    fn transact<'a>(&mut self, command: &[u8], response: &'a mut [u8]) -> Result<&'a mut [u8]> {
+    fn transact<'a>(&mut self, command: &[u8], response: &'a mut [u8]) -> io::Result<&'a mut [u8]> {
         let cmd_size: u32 = command
             .len()
             .try_into()
@@ -639,7 +639,7 @@ impl TcpSimulator {
         args: &[A],
         cwd: P,
         ip: &str,
-    ) -> Result<TcpSimulator> {
+    ) -> io::Result<TcpSimulator> {
         let mut command = Command::new(bin.as_ref());
         command.current_dir(&cwd);
         if !args.is_empty() {
@@ -675,7 +675,7 @@ impl TcpSimulator {
     }
 
     /// Reads a port from a file with retires.
-    fn read_port_from_file_with_retries(path: &Path) -> Result<u16> {
+    fn read_port_from_file_with_retries(path: &Path) -> io::Result<u16> {
         let mut attempts = 0;
         loop {
             attempts += 1;
@@ -698,12 +698,12 @@ impl TcpSimulator {
     }
 
     /// Stops the TPM simulator process nicely.
-    pub fn stop_nicely(&mut self) -> Result<()> {
+    pub fn stop_nicely(&mut self) -> io::Result<()> {
         self.conn.stop_simulator()
     }
 
     /// Stops the TPM simulator process.
-    pub fn stop(&mut self) -> Result<()> {
+    pub fn stop(&mut self) -> io::Result<()> {
         self.child
             .kill()
             .map_err(|e| Error::other(format!("failed to stop TCP simulator: {e}")))

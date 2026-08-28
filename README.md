@@ -30,7 +30,7 @@ There is a Dockerfile that can build this for you, making the process easier:
 
 ```
 # Build the simulator, and run only the simulator tests
-cd client && docker compose run --rm simulator_tests
+cd crates/tpm2-client && docker compose run --rm simulator_tests
 ```
 
 ## Contributing

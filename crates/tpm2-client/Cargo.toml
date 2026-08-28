@@ -14,19 +14,9 @@ categories.workspace = true
 default = ["connection-tcp"]
 
 # Enable the TCP TPM connection (e.g. for the TPM simulator)
-connection-tcp = ["dep:zerocopy", "tpm2-rs-base/std"]
+connection-tcp = ["dep:zerocopy", "tpm2/std"]
 
 [dependencies]
-tpm2-rs-base = { workspace = true }
-tpm2-rs-marshalable = { workspace = true }
+tpm2 = { workspace = true }
 zerocopy = { workspace = true, optional = true }
 
-[dev-dependencies]
-tempfile = { workspace = true }
-
-[[test]]
-name = "simulator"
-path = "tests/simulator.rs"
-# Do not test by default
-test = false
-required-features = ["connection-tcp"]

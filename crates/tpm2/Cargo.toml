@@ -17,3 +17,5 @@ categories.workspace = true
 std = []
 
 [dependencies]
+bitflags = { workspace = true }
+
